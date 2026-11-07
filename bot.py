@@ -23,7 +23,7 @@ try:
     if GEMINI_API_KEY and not ai_client:
         import google.generativeai as genai
         genai.configure(api_key=GEMINI_API_KEY)
-        gemini_model = genai.GenerativeModel("gemini-2.0-flash")
+        gemini_model = genai.GenerativeModel("gemini-3.8-flash")
 except Exception as e:
     print(f"Gemini nao configurado: {e}")
 
