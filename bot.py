@@ -11,21 +11,23 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
 logging.basicConfig(level=logging.INFO)
 
+# --- IA NOVA - Biblioteca nova do Google ---
+gemini_client = None
+try:
+    if GEMINI_API_KEY:
+        from google import genai
+        gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+        print("Gemini novo ligado!")
+except Exception as e:
+    print(f"Gemini nao ligado: {e}")
+
 ai_client = None
-gemini_model = None
 try:
     if OPENAI_API_KEY:
         import openai
         ai_client = openai.OpenAI(api_key=OPENAI_API_KEY)
 except Exception as e:
     print(f"OpenAI nao configurado: {e}")
-try:
-    if GEMINI_API_KEY and not ai_client:
-        import google.generativeai as genai
-        genai.configure(api_key=GEMINI_API_KEY)
-        gemini_model = genai.GenerativeModel("gemini-3.8-flash")
-except Exception as e:
-    print(f"Gemini nao configurado: {e}")
 
 def extrair_hashtags(texto: str):
     if not texto: return []
@@ -74,24 +76,31 @@ NOVAS HASHTAGS:
 [hashtags aqui]
 """
     try:
+        # 1. Tenta Gemini NOVO
+        if gemini_client:
+            resp = gemini_client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt
+            )
+            return resp.text
+        # 2. Tenta OpenAI
         if ai_client:
             resp = ai_client.chat.completions.create(model="gpt-4o-mini", messages=[{"role":"user","content":prompt}], temperature=0.9, max_tokens=600)
             return resp.choices[0].message.content
-        if gemini_model:
-            resp = gemini_model.generate_content(prompt)
-            return resp.text
-        return f"NOVA DESCRICAO:\n{titulo} - versao reescrita: {descricao_original[:300]}\n\nNOVAS HASHTAGS:\n{hashtags_originais} #viral #fyp #portugal\n\n(Adiciona OPENAI_API_KEY ou GEMINI_API_KEY no Railway para ativar a IA completa)"
+        return "Sem chave de IA configurada. Adiciona GEMINI_API_KEY no Railway."
     except Exception as e:
         return f"❌ Erro na IA: {e}"
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("👋 Ola! Manda-me um link do Instagram / TikTok / YouTube / Pinterest e eu devolvo-te o video + Titulo + Descricao + Hashtags + Nova Descricao com IA ✨")
+    await update.message.reply_text("👋 Ola! Manda-me um link do 【entity-Instagram¦canonical_name=Instagram】 / TikTok / YouTube / Pinterest e eu devolvo-te o video + Titulo + Descricao + Hashtags + Nova Descricao com IA ✨")
 
 async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text.strip()
     if "http" not in url:
         await update.message.reply_text("Manda-me um link 📎 Ex: https://www.tiktok.com/...")
         return
+    # Limpa o ?img_index do 【entity-Instagram¦canonical_name=Instagram】
+    url = url.split('?')[0]
     msg = await update.message.reply_text("A analisar o link... 🔍")
     try:
         with yt_dlp.YoutubeDL({'quiet': True, 'skip_download': True, 'no_warnings': True}) as ydl:
@@ -183,5 +192,5 @@ if __name__ == '__main__':
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
     app.add_handler(CallbackQueryHandler(button_handler))
-    print("Bot a correr com IA...")
+    print("Bot a correr com IA nova...")
     app.run_polling()
