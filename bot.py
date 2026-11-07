@@ -9,9 +9,17 @@ TOKEN = os.getenv("TELEGRAM_TOKEN", "COLOCA_O_TEU_TOKEN_AQUI")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
+# --- CADEADO - SO TU USAS ---
+# Teu ID: 161211861 (@valfra)
+ALLOWED_IDS = os.getenv("ALLOWED_USER_IDS", "161211861").split(",")
+ALLOWED_IDS = [x.strip() for x in ALLOWED_IDS if x.strip()]
+
+def pode_usar(user_id):
+    return str(user_id) in ALLOWED_IDS
+
 logging.basicConfig(level=logging.INFO)
 
-# --- IA NOVA - Biblioteca nova do Google ---
+# --- IA NOVA ---
 gemini_client = None
 try:
     if GEMINI_API_KEY:
@@ -58,7 +66,7 @@ def formatar_info(info):
 
 async def gerar_nova_descricao(titulo, descricao_original, hashtags_originais):
     prompt = f"""
-Tu es especialista em legendas virais para 【entity-Instagram¦canonical_name=Instagram】, TikTok e YouTube Shorts.
+Tu es especialista em legendas virais para Instagram, TikTok e YouTube Shorts.
 Reescreve esta descricao para a pessoa poder republicar o video sem ser copia.
 Titulo original: {titulo}
 Descricao original: {descricao_original}
@@ -76,14 +84,12 @@ NOVAS HASHTAGS:
 [hashtags aqui]
 """
     try:
-        # 1. Tenta Gemini NOVO
         if gemini_client:
             resp = gemini_client.models.generate_content(
                 model="gemini-2.5-flash",
                 contents=prompt
             )
             return resp.text
-        # 2. Tenta OpenAI
         if ai_client:
             resp = ai_client.chat.completions.create(model="gpt-4o-mini", messages=[{"role":"user","content":prompt}], temperature=0.9, max_tokens=600)
             return resp.choices[0].message.content
@@ -92,14 +98,19 @@ NOVAS HASHTAGS:
         return f"❌ Erro na IA: {e}"
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("👋 Ola! Manda-me um link do 【entity-Instagram¦canonical_name=Instagram】 / TikTok / YouTube / Pinterest e eu devolvo-te o video + Titulo + Descricao + Hashtags + Nova Descricao com IA ✨")
+    if not pode_usar(update.effective_user.id):
+        await update.message.reply_text("🔒 Este bot e privado. So a dona pode usar.")
+        return
+    await update.message.reply_text("👋 Ola! Manda-me um link do Instagram / TikTok / YouTube / Pinterest e eu devolvo-te o video + Titulo + Descricao + Hashtags + Nova Descricao com IA ✨")
 
 async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not pode_usar(update.effective_user.id):
+        await update.message.reply_text("🔒 Este bot e privado. So a dona pode usar.")
+        return
     url = update.message.text.strip()
     if "http" not in url:
         await update.message.reply_text("Manda-me um link 📎 Ex: https://www.tiktok.com/...")
         return
-    # Limpa o ?img_index do 【entity-Instagram¦canonical_name=Instagram】
     url = url.split('?')[0]
     msg = await update.message.reply_text("A analisar o link... 🔍")
     try:
@@ -125,6 +136,9 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+    if not pode_usar(query.from_user.id):
+        await query.message.reply_text("🔒 Este bot e privado. So a dona pode usar.")
+        return
     url = context.user_data.get('last_url')
     titulo = context.user_data.get('titulo','')
     descricao = context.user_data.get('descricao','')
@@ -192,5 +206,5 @@ if __name__ == '__main__':
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
     app.add_handler(CallbackQueryHandler(button_handler))
-    print("Bot a correr com IA nova...")
+    print("Bot a correr com IA nova e privado...")
     app.run_polling()
